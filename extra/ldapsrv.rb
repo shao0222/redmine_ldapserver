@@ -15,7 +15,6 @@ conf = {:daemonize => false,
         :debug => false,
         :env => 'production',
         :root => File.expand_path('../../../../', __FILE__),
-        :daemonize => true,
         :basedn => "dc=example,dc=org",
         :pool_size => 2,
         :pw_cache => 10,
@@ -139,6 +138,11 @@ module RedmineLDAPSrv
       @@ldapdb = nil
     end
 
+    def initialize(connection, messageID)
+      super(connection, messageID)
+      @server.root_dse['subschemaSubentry'] = "cn=Subschema"
+    end
+
     def load_ldapdb
       @@ldapdb = []
       prev_user = nil
@@ -165,32 +169,32 @@ module RedmineLDAPSrv
       rows = ActiveRecord::Base.connection.select_all(sql)
       rows.each do |row|
         if prev_user != row['member']
-          @@ldapdb.unshift(["uid=#{row['member']},#{@@basedn}", {'uid' => [row['member']], 'mail' => [row['mail']], 'language' => [row['language']], 'firstname' => [row['firstname']], 'lastname' => [row['lastname']]}])
+          @@ldapdb.unshift(["uid=#{row['member']},#{@@basedn}", {
+            'uid'       => [ row['member'] ],
+            'groups'    => [ row['groupname'] ],
+            'mail'      => [ row['mail'] ],
+            'language'  => [ row['language'] ],
+            'firstname' => [ row['firstname'] ],
+            'lastname'  => [ row['lastname'] ],
+            'fullname'  => [ row['firstname'] + row['lastname'] ]
+          }])
           prev_user = row['member']
+        else
+          @@ldapdb[0][1]['groups'].push(row['groupname'])
         end
-          @@ldapdb.unshift(["cn=#{row['groupname']},#{@@basedn}", {'cn' => [row['groupname']], 'uniqueMember' => ["uid=#{row['member']},#{@@basedn}"]}])
       end
 
       p @@ldapdb if $debug
     end
 
     def search(basedn, scope, deref, filter)
-      puts "basedn: #{basedn}, scope: #{scope}, deref: #{deref}, filter: #{filter}" if $debug
+      puts "binddn: #{@connection.binddn}, basedn: #{basedn}, scope: #{scope}, deref: #{deref}, filter: #{filter}" if $debug
+      # deny anonymous
+      raise LDAP::ResultError::InvalidCredentials unless @connection.binddn
       load_ldapdb if @@ldapdb.nil?
 #      basedn.downcase!
       ok = false
       case scope
-        when LDAP::Server::BaseObject
-          puts "search for single object by DN" if $debug
-          @@ldapdb.each do |row|
-            dn = row[0]
-            av = row[1]
-            if !ok and dn == basedn
-              ok = true
-              puts "filter: #{filter.inspect}, av: #{av.inspect}" if $debug
-              send_SearchResultEntry(basedn, av)
-            end
-          end
         when LDAP::Server::WholeSubtree
           puts "search subtree" if $debug
           @@ldapdb.each do |row|
