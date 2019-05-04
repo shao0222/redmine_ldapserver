@@ -142,14 +142,24 @@ module RedmineLDAPSrv
     def load_ldapdb
       @@ldapdb = []
       prev_user = nil
-      sql = "select g.lastname as groupname,
-                  u.login as member,
-                  u.mail as mail,
-                  u.firstname as firstname,
-                  u.lastname as lastname,
-                  u.language as language
-            from users as g inner join groups_users as gu on g.id = gu.group_id inner join users u on u.id = user_id where u.status = 1 and u.type = 'User' and u.auth_source_id is null
-            order by u.login
+      sql = "SELECT
+              g.lastname AS groupname,
+              u.login AS member,
+              e.address AS mail,
+              u.firstname AS firstname,
+              u.lastname AS lastname,
+              u.LANGUAGE AS LANGUAGE
+            FROM
+              users AS g
+            INNER JOIN groups_users AS gu ON g.id = gu.group_id
+            INNER JOIN users u ON u.id = gu.user_id
+            LEFT JOIN email_addresses e ON e.user_id = u.id
+            WHERE
+              u.STATUS = 1
+            AND u.type = 'User'
+            AND u.auth_source_id IS NULL
+            ORDER BY
+              u.login
             "
       puts "SQL Query: #{sql}" if $debug
       rows = ActiveRecord::Base.connection.select_all(sql)
@@ -158,7 +168,7 @@ module RedmineLDAPSrv
           @@ldapdb.unshift(["uid=#{row['member']},#{@@basedn}", {'uid' => [row['member']], 'mail' => [row['mail']], 'language' => [row['language']], 'firstname' => [row['firstname']], 'lastname' => [row['lastname']]}])
           prev_user = row['member']
         end
-        @@ldapdb.unshift(["cn=#{row['groupname']},#{@@basedn}", {'cn' => [row['groupname']], 'uniqueMember' => ["uid=#{row['member']},#{@@basedn}"]}])
+          @@ldapdb.unshift(["cn=#{row['groupname']},#{@@basedn}", {'cn' => [row['groupname']], 'uniqueMember' => ["uid=#{row['member']},#{@@basedn}"]}])
       end
 
       p @@ldapdb if $debug

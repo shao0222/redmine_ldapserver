@@ -1,2 +1,2 @@
-gem "ruby-ldapserver", '>=0.3.1'
+gem "ruby-ldapserver", '>=0.5.3'
 
