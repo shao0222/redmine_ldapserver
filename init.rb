@@ -32,11 +32,11 @@ Redmine::Plugin.register :redmine_ldapserver do
   settings :default => { 'sql_pool_size' => '10', 'listen_port' => 1389, 'pw_cache_size' => '100', 'basedn' => 'dc=example,dc=com' }, :partial => 'settings/ldapserver'
 
   RedmineApp::Application.config.after_initialize do
-	  srv = LdapServerControl.new
-	  srv.start()
-	  Kernel.at_exit do
-	    srv.stop()
-	  end
+    srv = LdapServerControl.new
+    srv.start()
+    Kernel.at_exit do
+      srv.stop()
+    end
   end
 
 

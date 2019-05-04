@@ -156,7 +156,7 @@ module RedmineLDAPSrv
             FROM
               users AS g
             INNER JOIN groups_users AS gu ON g.id = gu.group_id
-            INNER JOIN users u ON u.id = gu.user_id
+            RIGHT JOIN users u ON u.id = gu.user_id
             LEFT JOIN email_addresses e ON e.user_id = u.id
             WHERE
               u.STATUS = 1
@@ -171,7 +171,7 @@ module RedmineLDAPSrv
         if prev_user != row['member']
           @@ldapdb.unshift(["uid=#{row['member']},#{@@basedn}", {
             'uid'       => [ row['member'] ],
-            'groups'    => [ row['groupname'] ],
+            'groups'    => [ ],
             'mail'      => [ row['mail'] ],
             'language'  => [ row['language'] ],
             'firstname' => [ row['firstname'] ],
@@ -179,9 +179,8 @@ module RedmineLDAPSrv
             'fullname'  => [ row['firstname'] + row['lastname'] ]
           }])
           prev_user = row['member']
-        else
-          @@ldapdb[0][1]['groups'].push(row['groupname'])
         end
+        @@ldapdb[0][1]['groups'].push(row['groupname']) unless row['groupname'].nil?
       end
 
       p @@ldapdb if $debug
@@ -249,7 +248,11 @@ end
 
 def obtain_lock(pid)
   if File.exist?(pid)
-    remove_lock(pid) unless Process.getpgid(File.read(pid).to_i)
+    begin
+      Process.getpgid(File.read(pid).to_i)
+    rescue
+      remove_lock(pid)
+    end
   end
   File.open(pid, File::CREAT | File::EXCL | File::WRONLY) do |o|
     o.write(Process.pid)

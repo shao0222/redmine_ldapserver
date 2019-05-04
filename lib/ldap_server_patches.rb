@@ -8,7 +8,7 @@ module RedmineLdapServerUserPatch
         
         def reload_ldapsrv
     	    srv = LdapServerControl.new
-    	    srv.reload()
+    	    srv.restart()
         end
      end
   end
