@@ -143,8 +143,12 @@ module RedmineLDAPSrv
       @server.root_dse['subschemaSubentry'] = "cn=Subschema"
     end
 
-    def load_ldapdb
+    def load_ldapdb(dn)
       @@ldapdb = []
+      oufilter = ""
+      if dn =~/\Aou=([\w|-]+),#{@@basedn}\z/
+        oufilter = "AND g.lastname = " + ActiveRecord::Base.connection.quote($1)
+      end
       prev_user = nil
       sql = "SELECT
               g.lastname AS groupname,
@@ -162,6 +166,7 @@ module RedmineLDAPSrv
               u.STATUS = 1
             AND u.type = 'User'
             AND u.auth_source_id IS NULL
+            #{oufilter}
             ORDER BY
               u.login
             "
@@ -169,7 +174,7 @@ module RedmineLDAPSrv
       rows = ActiveRecord::Base.connection.select_all(sql)
       rows.each do |row|
         if prev_user != row['member']
-          @@ldapdb.unshift(["uid=#{row['member']},#{@@basedn}", {
+          @@ldapdb.unshift(["uid=#{row['member']},#{dn}", {
             'uid'       => [ row['member'] ],
             'groups'    => [ ],
             'mail'      => [ row['mail'] ],
@@ -190,7 +195,7 @@ module RedmineLDAPSrv
       puts "binddn: #{@connection.binddn}, basedn: #{basedn}, scope: #{scope}, deref: #{deref}, filter: #{filter}" if $debug
       # deny anonymous
       raise LDAP::ResultError::InvalidCredentials unless @connection.binddn
-      load_ldapdb if @@ldapdb.nil?
+      load_ldapdb(basedn)
 #      basedn.downcase!
       ok = false
       case scope
@@ -215,7 +220,7 @@ module RedmineLDAPSrv
     def simple_bind(version, dn, password)
       return if dn.nil? # accept anonymous
       puts "version: #{version}, dn: #{dn}, password: ********" if $debug
-      raise LDAP::ResultError::UnwillingToPerform unless dn =~/\Auid=([\w|-]+),#{@@basedn}\z/
+      raise LDAP::ResultError::UnwillingToPerform unless dn =~/\Auid=([\w|-]+),#{@@basedn}\z/ || dn =~/\Auid=([\w|-]+),ou=([\w|-]+),#{@@basedn}\z/
       login = $1
       data = @@cache.find(login)
       calculated_hash = Digest::SHA1.hexdigest(password)
