@@ -34,9 +34,6 @@ Redmine::Plugin.register :redmine_ldapserver do
   RedmineApp::Application.config.after_initialize do
     srv = LdapServerControl.new
     srv.start()
-    Kernel.at_exit do
-      srv.stop()
-    end
   end
 
 
